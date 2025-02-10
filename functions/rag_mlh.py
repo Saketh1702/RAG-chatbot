@@ -1,9 +1,5 @@
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
-import hashlib
-from langchain.embeddings.openai import OpenAIEmbeddings
-from pinecone import Pinecone
 import streamlit as st
-from openai import OpenAI
 
 def read_doc(directory: str) -> list[str]:
     # Initialize a PyPDFDirectoryLoader object with the given directory
@@ -16,12 +12,6 @@ def read_doc(directory: str) -> list[str]:
     page_contents = [doc.page_content for doc in documents]
 
     return page_contents
-
-
-# Call the function
-full_document = read_doc("pdf")
-
-
 
 def chunk_text_for_list(docs: list[str], max_chunk_size: int = 1000) -> list[list[str]]:
     def chunk_text(text: str, max_chunk_size: int) -> list[str]:
@@ -53,26 +43,17 @@ def chunk_text_for_list(docs: list[str], max_chunk_size: int = 1000) -> list[lis
     return [chunk_text(doc, max_chunk_size) for doc in docs]
 
 
-# Call the function
-chunked_document = chunk_text_for_list(docs=full_document)
-print(chunked_document)
-
-
+from langchain.embeddings.openai import OpenAIEmbeddings
 # You can use my API key
-EMBEDDINGS = OpenAIEmbeddings(api_key=st.secrets["OPENAI_API_KEY"])
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+EMBEDDINGS = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
 
 def generate_embeddings(documents: list[any]) -> list[list[float]]:
     embedded = [EMBEDDINGS.embed_documents(doc) for doc in documents]
     return embedded
 
-# Run the function
-chunked_document_embeddings = generate_embeddings(documents=chunked_document)
 
-# Let's see the dimension of our embedding model so we can set it up later in pinecone
-print(len(chunked_document_embeddings))
-
-
-
+import hashlib
 
 def generate_short_id(content: str) -> str:
     hash_obj = hashlib.sha256()
@@ -105,13 +86,11 @@ def combine_vector_and_text(
 
     return data_with_metadata
 
-# Call the function
-data_with_meta_data = combine_vector_and_text(documents=chunked_document, doc_embeddings=chunked_document_embeddings)
 
-
-
+from pinecone import Pinecone
 # Obtain your own pinecone key
-pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
+PINECONE_API_KEY = st.secrets["PINECONE_API_KEY"]
+pc = Pinecone(api_key=PINECONE_API_KEY)
 # Place the own index we created earlier
 index = pc.Index("ghw-rag-aiml")
 
@@ -119,15 +98,13 @@ def upsert_data_to_pinecone(data_with_metadata: list[dict[str, any]]) -> None:
     index.upsert(vectors=data_with_metadata)
 
 #Call the function
-# upsert_data_to_pinecone(data_with_metadata= data_with_meta_data)
+#upsert_data_to_pinecone(data_with_metadata= data_with_meta_data)
 
 def get_query_embeddings(query: str) -> list[float]:
     query_embeddings = EMBEDDINGS.embed_query(query)
     return query_embeddings
 
 # Call the function
-prompt = "What are MLH community guidelines?"
-query_embeddings = get_query_embeddings(query=prompt)
 
 def query_pinecone_index(
     query_embeddings: list, top_k: int = 2, include_metadata: bool = True
@@ -138,13 +115,11 @@ def query_pinecone_index(
     return query_response
 
 # Call the function
-answers = query_pinecone_index(query_embeddings=query_embeddings)
-print(answers)
 
-
-
-def generate_answer(answers: dict[str, any]) -> str:
-  client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+from openai import OpenAI
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+def generate_answer(answers: dict[str, any], prompt) -> str:
+  client = OpenAI(api_key=OPENAI_API_KEY)
   text_content = answers['matches'][0]['metadata']['text']
 
   completion = client.chat.completions.create(
@@ -159,6 +134,4 @@ def generate_answer(answers: dict[str, any]) -> str:
       ]
   )
 
-  print(completion.choices[0].message)
-
-generate_answer(answers)
+  st.write(completion.choices[0].message)
