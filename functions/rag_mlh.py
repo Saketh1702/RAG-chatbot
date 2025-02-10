@@ -1,5 +1,11 @@
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
 import streamlit as st
+import hashlib
+from langchain.embeddings.openai import OpenAIEmbeddings
+from pinecone import Pinecone
+from openai import OpenAI
+
+
 
 def read_doc(directory: str) -> list[str]:
     # Initialize a PyPDFDirectoryLoader object with the given directory
@@ -43,7 +49,6 @@ def chunk_text_for_list(docs: list[str], max_chunk_size: int = 1000) -> list[lis
     return [chunk_text(doc, max_chunk_size) for doc in docs]
 
 
-from langchain.embeddings.openai import OpenAIEmbeddings
 # You can use my API key
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 EMBEDDINGS = OpenAIEmbeddings(api_key=OPENAI_API_KEY)
@@ -53,7 +58,6 @@ def generate_embeddings(documents: list[any]) -> list[list[float]]:
     return embedded
 
 
-import hashlib
 
 def generate_short_id(content: str) -> str:
     hash_obj = hashlib.sha256()
@@ -87,7 +91,6 @@ def combine_vector_and_text(
     return data_with_metadata
 
 
-from pinecone import Pinecone
 # Obtain your own pinecone key
 PINECONE_API_KEY = st.secrets["PINECONE_API_KEY"]
 pc = Pinecone(api_key=PINECONE_API_KEY)
@@ -116,7 +119,6 @@ def query_pinecone_index(
 
 # Call the function
 
-from openai import OpenAI
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 def generate_answer(answers: dict[str, any], prompt) -> str:
   client = OpenAI(api_key=OPENAI_API_KEY)
