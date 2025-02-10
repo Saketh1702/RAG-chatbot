@@ -1,4 +1,8 @@
 from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
+import hashlib
+from langchain.embeddings.openai import OpenAIEmbeddings
+from pinecone import Pinecone
+import streamlit as st
 
 def read_doc(directory: str) -> list[str]:
     # Initialize a PyPDFDirectoryLoader object with the given directory
@@ -51,3 +55,67 @@ def chunk_text_for_list(docs: list[str], max_chunk_size: int = 1000) -> list[lis
 # Call the function
 chunked_document = chunk_text_for_list(docs=full_document)
 print(chunked_document)
+
+
+# You can use my API key
+EMBEDDINGS = OpenAIEmbeddings(api_key=st.secrets["OPENAI_API_KEY"])
+
+def generate_embeddings(documents: list[any]) -> list[list[float]]:
+    embedded = [EMBEDDINGS.embed_documents(doc) for doc in documents]
+    return embedded
+
+# Run the function
+chunked_document_embeddings = generate_embeddings(documents=chunked_document)
+
+# Let's see the dimension of our embedding model so we can set it up later in pinecone
+print(len(chunked_document_embeddings))
+
+
+
+
+def generate_short_id(content: str) -> str:
+    hash_obj = hashlib.sha256()
+    hash_obj.update(content.encode("utf-8"))
+    return hash_obj.hexdigest()
+
+
+def combine_vector_and_text(
+    documents: list[any], doc_embeddings: list[list[float]]
+) -> list[dict[str, any]]:
+    data_with_metadata = []
+
+    for doc_text, embedding in zip(documents, doc_embeddings):
+        # Convert doc_text to string if it's not already a string
+        if not isinstance(doc_text, str):
+            doc_text = str(doc_text)
+
+        # Generate a unique ID based on the text content
+        doc_id = generate_short_id(doc_text)
+
+        # Create a data item dictionary
+        data_item = {
+            "id": doc_id,
+            "values": embedding[0],
+            "metadata": {"text": doc_text},  # Include the text as metadata
+        }
+
+        # Append the data item to the list
+        data_with_metadata.append(data_item)
+
+    return data_with_metadata
+
+# Call the function
+data_with_meta_data = combine_vector_and_text(documents=chunked_document, doc_embeddings=chunked_document_embeddings)
+
+
+
+# Obtain your own pinecone key
+pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
+# Place the own index we created earlier
+index = pc.Index("ghw-rag-aiml")
+
+def upsert_data_to_pinecone(data_with_metadata: list[dict[str, any]]) -> None:
+    index.upsert(vectors=data_with_metadata)
+
+#Call the function
+upsert_data_to_pinecone(data_with_metadata= data_with_meta_data)
