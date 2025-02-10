@@ -3,6 +3,7 @@ import hashlib
 from langchain.embeddings.openai import OpenAIEmbeddings
 from pinecone import Pinecone
 import streamlit as st
+from openai import OpenAI
 
 def read_doc(directory: str) -> list[str]:
     # Initialize a PyPDFDirectoryLoader object with the given directory
@@ -118,4 +119,46 @@ def upsert_data_to_pinecone(data_with_metadata: list[dict[str, any]]) -> None:
     index.upsert(vectors=data_with_metadata)
 
 #Call the function
-upsert_data_to_pinecone(data_with_metadata= data_with_meta_data)
+# upsert_data_to_pinecone(data_with_metadata= data_with_meta_data)
+
+def get_query_embeddings(query: str) -> list[float]:
+    query_embeddings = EMBEDDINGS.embed_query(query)
+    return query_embeddings
+
+# Call the function
+prompt = "What are MLH community guidelines?"
+query_embeddings = get_query_embeddings(query=prompt)
+
+def query_pinecone_index(
+    query_embeddings: list, top_k: int = 2, include_metadata: bool = True
+) -> dict[str, any]:
+    query_response = index.query(
+        vector=query_embeddings, top_k=top_k, include_metadata=include_metadata
+    )
+    return query_response
+
+# Call the function
+answers = query_pinecone_index(query_embeddings=query_embeddings)
+print(answers)
+
+
+
+def generate_answer(answers: dict[str, any]) -> str:
+  client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+  text_content = answers['matches'][0]['metadata']['text']
+
+  completion = client.chat.completions.create(
+      model="gpt-4o",
+      messages=[
+          {"role": "developer", "content": text_content},
+          {
+              "role": "user",
+              "content": "With the given context provide a better answer to the question: " + prompt,
+
+          }
+      ]
+  )
+
+  print(completion.choices[0].message)
+
+generate_answer(answers)
